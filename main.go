@@ -5,6 +5,13 @@ import (
 	"math"
 )
 
+var (
+	CAMERA_POS     = vector3{0, 0, -1}
+	IMAGE_TOP_LEFT = vector3{-0.5, -0.5, 0}
+	IMAGE_SIZE     = 1.0
+	IMAGE_RES      = 200
+)
+
 func minPosValue(x, y float64) (float64, bool) {
 	if x < 0 && y < 0 {
 		return 0, false
@@ -106,7 +113,8 @@ type object3D interface {
 }
 
 func main() {
-	r := ray{vector3{0, 0, 0}, vector3{1, 0, 0}}
-	s := sphere{vector3{3, 0, 0}, 0.5}
-	fmt.Println(s.intersect(r))
+	objs := []object3D{
+		sphere{vector3{0, 0, 5}, 1},
+	}
+	fmt.Println(objs)
 }
