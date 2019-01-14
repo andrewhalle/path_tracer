@@ -12,6 +12,8 @@ var (
 	IMAGE_RES      = 200
 )
 
+//- util functions -------------------------------------
+
 func minPosValue(x, y float64) (float64, bool) {
 	if x < 0 && y < 0 {
 		return 0, false
@@ -23,6 +25,8 @@ func minPosValue(x, y float64) (float64, bool) {
 		return math.Min(x, y), true
 	}
 }
+
+//- vector3 ---------------------------------------------
 
 type vector3 struct {
 	x, y, z float64
@@ -52,6 +56,8 @@ func (u vector3) normSquared() float64 {
 	return u.dot(u)
 }
 
+//- ray --------------------------------------------------
+
 type ray struct {
 	start, direction vector3
 }
@@ -60,23 +66,27 @@ func (r ray) at(t float64) vector3 {
 	return r.start.plus(r.direction.times(t))
 }
 
+//- plane -------------------------------------------------
+
 type plane struct {
 	center, normal vector3
 }
 
 func (p plane) intersect(r ray) (vector3, bool) {
 	if p.normal.dot(r.direction) == 0 {
-		return vector3{}, false
+		return vector3{}, 0, false
 	}
 	t := p.normal.dot(p.center.minus(r.start)) / p.normal.dot(r.direction)
 	if t < 0 {
-		return vector3{}, false
+		return vector3{}, 0, false
 	} else {
 		fmt.Println(t)
-		return r.at(t), true
+		return r.at(t), t, true
 	}
 
 }
+
+//- sphere -----------------------------------------------
 
 type sphere struct {
 	center vector3
@@ -90,11 +100,11 @@ func (s sphere) intersect(r ray) (vector3, bool) {
 	discriminant := math.Pow(b, 2) - (4 * a * c)
 	var t float64
 	if discriminant < 0 {
-		return vector3{}, false
+		return vector3{}, 0, false
 	} else if discriminant == 0 {
 		t = -b / (2 * a)
 		if t < 0 {
-			return vector3{}, false
+			return vector3{}, 0, false
 		}
 	} else {
 		t1 := (-b + math.Sqrt(discriminant)) / (2 * a)
@@ -102,15 +112,19 @@ func (s sphere) intersect(r ray) (vector3, bool) {
 		var ok bool
 		t, ok = minPosValue(t1, t2)
 		if !ok {
-			return vector3{}, false
+			return vector3{}, 0, false
 		}
 	}
-	return r.at(t), true
+	return r.at(t), t, true
 }
 
+//- object3D --------------------------------------------
+
 type object3D interface {
-	intersect(r ray) (vector3, bool)
+	intersect(r ray) (vector3, float64, bool)
 }
+
+//- path_tracer -----------------------------------------
 
 func main() {
 	objs := []object3D{
