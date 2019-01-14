@@ -70,9 +70,10 @@ func (r ray) at(t float64) vector3 {
 
 type plane struct {
 	center, normal vector3
+	e, r           vector3
 }
 
-func (p plane) intersect(r ray) (vector3, bool) {
+func (p plane) intersect(r ray) (vector3, float64, bool) {
 	if p.normal.dot(r.direction) == 0 {
 		return vector3{}, 0, false
 	}
@@ -86,14 +87,24 @@ func (p plane) intersect(r ray) (vector3, bool) {
 
 }
 
+func (p plane) emittance() vector3 {
+	return p.e
+}
+
+func (p plane) reflectance() vector3 {
+	return p.r
+}
+
 //- sphere -----------------------------------------------
 
 type sphere struct {
 	center vector3
 	radius float64
+	e      vector3
+	r      vector3
 }
 
-func (s sphere) intersect(r ray) (vector3, bool) {
+func (s sphere) intersect(r ray) (vector3, float64, bool) {
 	a := r.direction.normSquared()
 	b := 2 * r.direction.dot(r.start.minus(s.center))
 	c := r.start.minus(s.center).normSquared() - math.Pow(s.radius, 2)
@@ -118,17 +129,31 @@ func (s sphere) intersect(r ray) (vector3, bool) {
 	return r.at(t), t, true
 }
 
+func (s sphere) emittance() vector3 {
+	return s.e
+}
+
+func (s sphere) reflectance() vector3 {
+	return s.r
+}
+
 //- object3D --------------------------------------------
 
 type object3D interface {
 	intersect(r ray) (vector3, float64, bool)
+	emittance() vector3
+	reflectance() vector3
 }
 
 //- path_tracer -----------------------------------------
 
 func main() {
 	objs := []object3D{
-		sphere{vector3{0, 0, 5}, 1},
+		sphere{vector3{0, 0, 5},
+			1,
+			vector3{},
+			vector3{100, 50, 25},
+		},
 	}
 	fmt.Println(objs)
 }
