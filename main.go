@@ -219,13 +219,13 @@ func tracePath(objs []object3D, r ray, depth int) vector3 {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	objs := []object3D{
-		sphere{vector3{0, 0, 5},
+		sphere{vector3{-1, -1, 5},
 			1,
 			vector3{},
 			vector3{100, 50, 25},
 		},
-		sphere{vector3{-5, -5, -5},
-			3,
+		sphere{vector3{1, 1, 5},
+			1,
 			vector3{12, 12, 12},
 			vector3{},
 		},
