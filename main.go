@@ -18,7 +18,7 @@ var (
 	IMAGE_RES      = 200
 	PIXEL_WIDTH    = IMAGE_SIZE / float64(IMAGE_RES)
 	MAX_DEPTH      = 3
-	SAMPLES        = 100
+	SAMPLES        = 10000
 )
 
 //- util functions -------------------------------------
@@ -35,13 +35,6 @@ func minPosValue(x, y float64) (float64, bool) {
 	}
 }
 
-func blendMultiply(c1, c2 vector3) vector3 {
-	c1 = c1.times(1 / 255.0)
-	c2 = c2.times(1 / 255.0)
-	retval := vector3{c1.x * c2.x, c1.y * c2.y, c1.z * c2.z}
-	return retval.times(255.0)
-}
-
 func randomUnitVectorInHemisphereOf(norm vector3) vector3 {
 	for {
 		theta := 2 * math.Pi * rand.Float64()
@@ -52,6 +45,20 @@ func randomUnitVectorInHemisphereOf(norm vector3) vector3 {
 		}
 	}
 
+}
+
+func gammaCorrect(x float64) uint8 {
+	return uint8(math.Pow(clamp(x), 1/2.2) * 255)
+}
+
+func clamp(x float64) float64 {
+	if x < 0 {
+		return 0
+	} else if x > 1 {
+		return 1
+	} else {
+		return x
+	}
 }
 
 //- vector3 ---------------------------------------------
@@ -88,6 +95,26 @@ func (u vector3) norm() vector3 {
 	return u.times(math.Sqrt(u.normSquared()))
 }
 
+//- color3 -----------------------------------------------
+
+type color3 vector3
+
+func (c1 color3) multiply(c2 color3) color3 {
+	return color3{c1.x * c2.x, c1.y * c2.y, c1.z * c2.z}
+}
+
+func (c1 color3) add(c2 color3) color3 {
+	return color3{c1.x + c2.x, c1.y + c2.y, c1.z + c2.z}
+}
+
+func (c1 color3) scalarMultiply(a float64) color3 {
+	return color3{a * c1.x, a * c1.y, a * c1.z}
+}
+
+func (c color3) toColor() color.RGBA {
+	return color.RGBA{gammaCorrect(c.x), gammaCorrect(c.y), gammaCorrect(c.z), 255}
+}
+
 //- ray --------------------------------------------------
 
 type ray struct {
@@ -102,7 +129,7 @@ func (r ray) at(t float64) vector3 {
 
 type plane struct {
 	center, normal vector3
-	e, r           vector3
+	e, r           color3
 }
 
 func (p plane) intersect(r ray) (float64, bool) {
@@ -119,11 +146,11 @@ func (p plane) intersect(r ray) (float64, bool) {
 
 }
 
-func (p plane) emittance() vector3 {
+func (p plane) emittance() color3 {
 	return p.e
 }
 
-func (p plane) reflectance() vector3 {
+func (p plane) reflectance() color3 {
 	return p.r
 }
 
@@ -136,8 +163,7 @@ func (p plane) normalAt(point vector3) vector3 {
 type sphere struct {
 	center vector3
 	radius float64
-	e      vector3
-	r      vector3
+	e, r   color3
 }
 
 func (s sphere) intersect(r ray) (float64, bool) {
@@ -165,11 +191,11 @@ func (s sphere) intersect(r ray) (float64, bool) {
 	return t, true
 }
 
-func (s sphere) emittance() vector3 {
+func (s sphere) emittance() color3 {
 	return s.e
 }
 
-func (s sphere) reflectance() vector3 {
+func (s sphere) reflectance() color3 {
 	return s.r
 }
 
@@ -181,16 +207,16 @@ func (s sphere) normalAt(point vector3) vector3 {
 
 type object3D interface {
 	intersect(r ray) (float64, bool)
-	emittance() vector3
-	reflectance() vector3
+	emittance() color3
+	reflectance() color3
 	normalAt(point vector3) vector3
 }
 
 //- path_tracer -----------------------------------------
 
-func tracePath(objs []object3D, r ray, depth int) vector3 {
+func tracePath(objs []object3D, r ray, depth int) color3 {
 	if depth >= MAX_DEPTH {
-		return vector3{}
+		return color3{}
 	}
 	minT, found := math.Inf(1), false
 	var thingHit object3D
@@ -203,17 +229,17 @@ func tracePath(objs []object3D, r ray, depth int) vector3 {
 		}
 	}
 	if !found {
-		return vector3{}
+		return color3{}
 	}
 	pointHit := r.at(minT)
 	newDirection := randomUnitVectorInHemisphereOf(thingHit.normalAt(pointHit))
 	newRay := ray{pointHit, newDirection}
 	p := 1 / (2 * math.Pi)
 	cos_theta := newDirection.dot(thingHit.normalAt(pointHit))
-	brdf := thingHit.reflectance().times(1 / math.Pi)
+	brdf := thingHit.reflectance().scalarMultiply(1 / math.Pi)
 
 	incoming := tracePath(objs, newRay, depth+1)
-	return thingHit.emittance().plus(blendMultiply(brdf, incoming).times(cos_theta / p))
+	return thingHit.emittance().add(brdf.multiply(incoming).scalarMultiply(cos_theta / p))
 }
 
 func main() {
@@ -221,28 +247,28 @@ func main() {
 	objs := []object3D{
 		sphere{vector3{-1, -1, 5},
 			1,
-			vector3{},
-			vector3{100, 50, 25},
+			color3{},
+			color3{0.5, 0.25, 0.125},
 		},
 		sphere{vector3{1, 1, 5},
 			1,
-			vector3{12, 12, 12},
-			vector3{},
+			color3{0.9, 0.9, 0.9},
+			color3{},
 		},
 	}
 	r := image.Rect(0, 0, IMAGE_RES, IMAGE_RES)
 	im := image.NewRGBA(r)
 	for i := 0; i < IMAGE_RES; i++ {
 		for j := 0; j < IMAGE_RES; j++ {
-			finalColor := vector3{}
+			finalColor := color3{}
 			for n := 0; n < SAMPLES; n++ {
 				pixelPos := IMAGE_TOP_LEFT.plus(vector3{1, 0, 0}.times(PIXEL_WIDTH * float64(i))).plus(vector3{0, 1, 0}.times(PIXEL_WIDTH * float64(j)))
 				r := ray{CAMERA_POS, pixelPos.minus(CAMERA_POS).norm()}
 				c := tracePath(objs, r, 0)
-				finalColor = finalColor.plus(c)
+				finalColor = finalColor.add(c)
 			}
-			finalColor = finalColor.times(1 / float64(SAMPLES))
-			im.SetRGBA(i, j, color.RGBA{uint8(finalColor.x), uint8(finalColor.y), uint8(finalColor.z), 255})
+			finalColor = finalColor.scalarMultiply(1 / float64(SAMPLES))
+			im.SetRGBA(i, j, finalColor.toColor())
 		}
 	}
 	fmt.Println(png.Encode(os.Stdout, im))
