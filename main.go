@@ -15,10 +15,10 @@ var (
 	CAMERA_POS     = vector3{0, 0, -1}
 	IMAGE_TOP_LEFT = vector3{-0.5, -0.5, 0}
 	IMAGE_SIZE     = 1.0
-	IMAGE_RES      = 200
+	IMAGE_RES      = 800
 	PIXEL_WIDTH    = IMAGE_SIZE / float64(IMAGE_RES)
-	MAX_DEPTH      = 3
-	SAMPLES        = 10000
+	MAX_DEPTH      = 7
+	SAMPLES        = 100
 )
 
 //- util functions -------------------------------------
@@ -140,7 +140,6 @@ func (p plane) intersect(r ray) (float64, bool) {
 	if t < 0 {
 		return 0, false
 	} else {
-		fmt.Println(t)
 		return t, true
 	}
 
@@ -255,10 +254,31 @@ func main() {
 			color3{0.9, 0.9, 0.9},
 			color3{},
 		},
+		plane{vector3{0, 0, 7},
+			vector3{0, 0, -1},
+			color3{},
+			color3{1, 0.5, 0.5},
+		},
+		plane{vector3{-2, 0, 0},
+			vector3{1, 0, 0},
+			color3{},
+			color3{1, 0.5, 0.5},
+		},
+		plane{vector3{2, 0, 0},
+			vector3{-1, 0, 0},
+			color3{},
+			color3{1, 0.5, 0.5},
+		},
+		plane{vector3{0, -1, 0},
+			vector3{0, 1, 0},
+			color3{},
+			color3{1, 0.5, 0.5},
+		},
 	}
 	r := image.Rect(0, 0, IMAGE_RES, IMAGE_RES)
 	im := image.NewRGBA(r)
 	for i := 0; i < IMAGE_RES; i++ {
+		fmt.Fprintf(os.Stderr, "%d\n", i)
 		for j := 0; j < IMAGE_RES; j++ {
 			finalColor := color3{}
 			for n := 0; n < SAMPLES; n++ {
