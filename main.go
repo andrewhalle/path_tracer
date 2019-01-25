@@ -15,10 +15,10 @@ var (
 	CAMERA_POS     = vector3{0, 0, -1}
 	IMAGE_TOP_LEFT = vector3{-0.5, -0.5, 0}
 	IMAGE_SIZE     = 1.0
-	IMAGE_RES      = 800
+	IMAGE_RES      = 200
 	PIXEL_WIDTH    = IMAGE_SIZE / float64(IMAGE_RES)
-	MAX_DEPTH      = 7
-	SAMPLES        = 100
+	MAX_DEPTH      = 3
+	SAMPLES        = 1000
 )
 
 //- util functions -------------------------------------
@@ -133,7 +133,7 @@ type plane struct {
 }
 
 func (p plane) intersect(r ray) (float64, bool) {
-	if p.normal.dot(r.direction) == 0 {
+	if p.normal.dot(r.direction) >= 0 {
 		return 0, false
 	}
 	t := p.normal.dot(p.center.minus(r.start)) / p.normal.dot(r.direction)
@@ -251,7 +251,7 @@ func main() {
 		},
 		sphere{vector3{1, 1, 5},
 			1,
-			color3{0.9, 0.9, 0.9},
+			color3{10, 10, 10},
 			color3{},
 		},
 		plane{vector3{0, 0, 7},
