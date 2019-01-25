@@ -15,10 +15,10 @@ var (
 	CAMERA_POS     = vector3{0, 0, -1}
 	IMAGE_TOP_LEFT = vector3{-0.5, -0.5, 0}
 	IMAGE_SIZE     = 1.0
-	IMAGE_RES      = 200
+	IMAGE_RES      = 400
 	PIXEL_WIDTH    = IMAGE_SIZE / float64(IMAGE_RES)
 	MAX_DEPTH      = 3
-	SAMPLES        = 1000
+	SAMPLES        = 10000
 )
 
 //- util functions -------------------------------------
@@ -178,12 +178,18 @@ func (s sphere) intersect(r ray) (float64, bool) {
 		if t < 0 {
 			return 0, false
 		}
+		if r.direction.dot(s.normalAt(r.at(t))) > 0 {
+			return 0, false
+		}
 	} else {
 		t1 := (-b + math.Sqrt(discriminant)) / (2 * a)
 		t2 := (-b - math.Sqrt(discriminant)) / (2 * a)
 		var ok bool
 		t, ok = minPosValue(t1, t2)
 		if !ok {
+			return 0, false
+		}
+		if r.direction.dot(s.normalAt(r.at(t))) > 0 {
 			return 0, false
 		}
 	}
@@ -244,13 +250,13 @@ func tracePath(objs []object3D, r ray, depth int) color3 {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	objs := []object3D{
-		sphere{vector3{-1, -1, 5},
+		sphere{vector3{1, 1, 5},
 			1,
 			color3{},
 			color3{0.5, 0.25, 0.125},
 		},
-		sphere{vector3{1, 1, 5},
-			1,
+		sphere{vector3{-1, -1, 5},
+			0.5,
 			color3{10, 10, 10},
 			color3{},
 		},
