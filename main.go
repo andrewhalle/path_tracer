@@ -10,6 +10,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -21,7 +22,7 @@ var (
 	PIXEL_WIDTH    = IMAGE_SIZE / float64(IMAGE_RES)
 	MAX_DEPTH      = 5
 	SAMPLES        = 300
-	SCENE_FILENAME = "examples/basic.json"
+	SCENE_FILENAME = "scene.json"
 )
 
 type reflectionType int
@@ -315,8 +316,29 @@ func tracePath(objs []object3D, r ray, depth int) color3 {
 	return thingHit.emittance().add(brdf.multiply(incoming).scalarMultiply(cos_theta / p))
 }
 
+func parseArgs() {
+	args := os.Args[1:]
+	for len(args) > 0 {
+		switch args[0] {
+		case "--scene":
+			SCENE_FILENAME = args[1]
+			args = args[2:]
+		case "--resolution":
+			IMAGE_RES, _ = strconv.Atoi(args[1])
+			PIXEL_WIDTH = IMAGE_SIZE / float64(IMAGE_RES)
+			args = args[2:]
+		case "--samples":
+			SAMPLES, _ = strconv.Atoi(args[1])
+			args = args[2:]
+		default:
+			panic("unable to parse args")
+		}
+	}
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
+	parseArgs()
 	objs := sceneFromJSON(SCENE_FILENAME)
 	r := image.Rect(0, 0, IMAGE_RES, IMAGE_RES)
 	im := image.NewRGBA(r)
