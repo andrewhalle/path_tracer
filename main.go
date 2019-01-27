@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"os"
@@ -17,8 +19,9 @@ var (
 	IMAGE_SIZE     = 1.0
 	IMAGE_RES      = 100
 	PIXEL_WIDTH    = IMAGE_SIZE / float64(IMAGE_RES)
-	MAX_DEPTH      = 3
+	MAX_DEPTH      = 5
 	SAMPLES        = 300
+	SCENE_FILENAME = "examples/basic.json"
 )
 
 type reflectionType int
@@ -27,6 +30,44 @@ const (
 	SPECULAR reflectionType = iota
 	DIFFUSE
 )
+
+//- json stuff     -------------------------------------
+
+type objType int
+
+const (
+	SPHERE objType = iota
+	PLANE
+)
+
+type typedObject3D struct {
+	Type objType
+	Data json.RawMessage
+}
+
+func sceneFromJSON(filename string) []object3D {
+	data, _ := ioutil.ReadFile(filename)
+	var scene []object3D
+	var typedScene []typedObject3D
+	json.Unmarshal(data, &typedScene)
+
+	for _, obj := range typedScene {
+		switch obj.Type {
+		case SPHERE:
+			var s sphere
+			json.Unmarshal(obj.Data, &s)
+			scene = append(scene, s)
+		case PLANE:
+			var p plane
+			json.Unmarshal(obj.Data, &p)
+			scene = append(scene, p)
+		default:
+			panic("couldn't load scene from file")
+		}
+	}
+
+	return scene
+}
 
 //- util functions -------------------------------------
 
@@ -71,27 +112,27 @@ func clamp(x float64) float64 {
 //- vector3 ---------------------------------------------
 
 type vector3 struct {
-	x, y, z float64
+	X, Y, Z float64
 }
 
 func (u vector3) dot(v vector3) float64 {
-	return (u.x * v.x) + (u.y * v.y) + (u.z * v.z)
+	return (u.X * v.X) + (u.Y * v.Y) + (u.Z * v.Z)
 }
 
 func (u vector3) plus(v vector3) vector3 {
-	return vector3{u.x + v.x, u.y + v.y, u.z + v.z}
+	return vector3{u.X + v.X, u.Y + v.Y, u.Z + v.Z}
 }
 
 func (u vector3) minus(v vector3) vector3 {
-	return vector3{u.x - v.x, u.y - v.y, u.z - v.z}
+	return vector3{u.X - v.X, u.Y - v.Y, u.Z - v.Z}
 }
 
 func (u vector3) times(a float64) vector3 {
-	return vector3{u.x * a, u.y * a, u.z * a}
+	return vector3{u.X * a, u.Y * a, u.Z * a}
 }
 
 func (u vector3) equals(v vector3) bool {
-	return (u.x == v.x) && (u.y == v.y) && (u.z == v.z)
+	return (u.X == v.X) && (u.Y == v.Y) && (u.Z == v.Z)
 }
 
 func (u vector3) normSquared() float64 {
@@ -107,48 +148,48 @@ func (u vector3) norm() vector3 {
 type color3 vector3
 
 func (c1 color3) multiply(c2 color3) color3 {
-	return color3{c1.x * c2.x, c1.y * c2.y, c1.z * c2.z}
+	return color3{c1.X * c2.X, c1.Y * c2.Y, c1.Z * c2.Z}
 }
 
 func (c1 color3) add(c2 color3) color3 {
-	return color3{c1.x + c2.x, c1.y + c2.y, c1.z + c2.z}
+	return color3{c1.X + c2.X, c1.Y + c2.Y, c1.Z + c2.Z}
 }
 
 func (c1 color3) scalarMultiply(a float64) color3 {
-	return color3{a * c1.x, a * c1.y, a * c1.z}
+	return color3{a * c1.X, a * c1.Y, a * c1.Z}
 }
 
 func (c color3) toColor() color.RGBA {
-	return color.RGBA{gammaCorrect(c.x), gammaCorrect(c.y), gammaCorrect(c.z), 255}
+	return color.RGBA{gammaCorrect(c.X), gammaCorrect(c.Y), gammaCorrect(c.Z), 255}
 }
 
 //- ray --------------------------------------------------
 
 type ray struct {
-	start, dir vector3
+	Start, Dir vector3
 }
 
 func (r ray) at(t float64) vector3 {
-	return r.start.plus(r.direction().times(t))
+	return r.Start.plus(r.direction().times(t))
 }
 
 func (r ray) direction() vector3 {
-	return r.dir.norm()
+	return r.Dir.norm()
 }
 
 //- plane -------------------------------------------------
 
 type plane struct {
-	center, normal vector3
-	e, r           color3
-	rT             reflectionType
+	Center, Normal vector3
+	E, R           color3
+	RT             reflectionType
 }
 
 func (p plane) intersect(r ray) (float64, bool) {
-	if p.normal.dot(r.direction()) >= 0 {
+	if p.Normal.dot(r.direction()) >= 0 {
 		return 0, false
 	}
-	t := p.normal.dot(p.center.minus(r.start)) / p.normal.dot(r.direction())
+	t := p.Normal.dot(p.Center.minus(r.Start)) / p.Normal.dot(r.direction())
 	if t < 0 {
 		return 0, false
 	} else {
@@ -158,34 +199,34 @@ func (p plane) intersect(r ray) (float64, bool) {
 }
 
 func (p plane) emittance() color3 {
-	return p.e
+	return p.E
 }
 
 func (p plane) reflectance() color3 {
-	return p.r
+	return p.R
 }
 
 func (p plane) normalAt(point vector3) vector3 {
-	return p.normal.norm()
+	return p.Normal.norm()
 }
 
 func (p plane) reflType() reflectionType {
-	return p.rT
+	return p.RT
 }
 
 //- sphere -----------------------------------------------
 
 type sphere struct {
-	center vector3
-	radius float64
-	e, r   color3
-	rT     reflectionType
+	Center vector3
+	Radius float64
+	E, R   color3
+	RT     reflectionType
 }
 
 func (s sphere) intersect(r ray) (float64, bool) {
 	a := r.direction().normSquared()
-	b := 2 * r.direction().dot(r.start.minus(s.center))
-	c := r.start.minus(s.center).normSquared() - math.Pow(s.radius, 2)
+	b := 2 * r.direction().dot(r.Start.minus(s.Center))
+	c := r.Start.minus(s.Center).normSquared() - math.Pow(s.Radius, 2)
 	discriminant := math.Pow(b, 2) - (4 * a * c)
 	var t float64
 	if discriminant < 0 {
@@ -214,19 +255,19 @@ func (s sphere) intersect(r ray) (float64, bool) {
 }
 
 func (s sphere) emittance() color3 {
-	return s.e
+	return s.E
 }
 
 func (s sphere) reflectance() color3 {
-	return s.r
+	return s.R
 }
 
 func (s sphere) normalAt(point vector3) vector3 {
-	return point.minus(s.center).norm()
+	return point.minus(s.Center).norm()
 }
 
 func (s sphere) reflType() reflectionType {
-	return s.rT
+	return s.RT
 }
 
 //- object3D --------------------------------------------
@@ -276,44 +317,7 @@ func tracePath(objs []object3D, r ray, depth int) color3 {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	objs := []object3D{
-		sphere{vector3{1, 1, 5},
-			1,
-			color3{},
-			color3{0.5, 0.25, 0.125},
-			SPECULAR,
-		},
-		sphere{vector3{-1, -1, 5},
-			0.5,
-			color3{10, 10, 10},
-			color3{},
-			DIFFUSE,
-		},
-		plane{vector3{0, 0, 7},
-			vector3{0, 0, -1},
-			color3{},
-			color3{1, 0.5, 0.5},
-			DIFFUSE,
-		},
-		plane{vector3{-2, 0, 0},
-			vector3{1, 0, 0},
-			color3{},
-			color3{1, 0.5, 0.5},
-			DIFFUSE,
-		},
-		plane{vector3{2, 0, 0},
-			vector3{-1, 0, 0},
-			color3{},
-			color3{1, 0.5, 0.5},
-			DIFFUSE,
-		},
-		plane{vector3{0, -1, 0},
-			vector3{0, 1, 0},
-			color3{},
-			color3{1, 0.5, 0.5},
-			DIFFUSE,
-		},
-	}
+	objs := sceneFromJSON(SCENE_FILENAME)
 	r := image.Rect(0, 0, IMAGE_RES, IMAGE_RES)
 	im := image.NewRGBA(r)
 	for i := 0; i < IMAGE_RES; i++ {

@@ -1,7 +1,7 @@
 trivially parallelize
 implement supersampling
 implement meshes
-abstract variables like SAMPLE/IMAGE_RES into command line options
-abstract objs to be loaded from JSON file, another command line options
-implement specular reflection as an option
+abstract variables like SAMPLE/IMAGE_RES/SCENE_FILENAME into command line options
+x abstract objs to be loaded from JSON file
+x implement specular reflection as an option
 refactor code
