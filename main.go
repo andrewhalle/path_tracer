@@ -15,10 +15,17 @@ var (
 	CAMERA_POS     = vector3{0, 0, -1}
 	IMAGE_TOP_LEFT = vector3{-0.5, -0.5, 0}
 	IMAGE_SIZE     = 1.0
-	IMAGE_RES      = 400
+	IMAGE_RES      = 100
 	PIXEL_WIDTH    = IMAGE_SIZE / float64(IMAGE_RES)
 	MAX_DEPTH      = 3
-	SAMPLES        = 10000
+	SAMPLES        = 300
+)
+
+type reflectionType int
+
+const (
+	SPECULAR reflectionType = iota
+	DIFFUSE
 )
 
 //- util functions -------------------------------------
@@ -118,11 +125,15 @@ func (c color3) toColor() color.RGBA {
 //- ray --------------------------------------------------
 
 type ray struct {
-	start, direction vector3
+	start, dir vector3
 }
 
 func (r ray) at(t float64) vector3 {
-	return r.start.plus(r.direction.times(t))
+	return r.start.plus(r.direction().times(t))
+}
+
+func (r ray) direction() vector3 {
+	return r.dir.norm()
 }
 
 //- plane -------------------------------------------------
@@ -130,13 +141,14 @@ func (r ray) at(t float64) vector3 {
 type plane struct {
 	center, normal vector3
 	e, r           color3
+	rT             reflectionType
 }
 
 func (p plane) intersect(r ray) (float64, bool) {
-	if p.normal.dot(r.direction) >= 0 {
+	if p.normal.dot(r.direction()) >= 0 {
 		return 0, false
 	}
-	t := p.normal.dot(p.center.minus(r.start)) / p.normal.dot(r.direction)
+	t := p.normal.dot(p.center.minus(r.start)) / p.normal.dot(r.direction())
 	if t < 0 {
 		return 0, false
 	} else {
@@ -157,17 +169,22 @@ func (p plane) normalAt(point vector3) vector3 {
 	return p.normal.norm()
 }
 
+func (p plane) reflType() reflectionType {
+	return p.rT
+}
+
 //- sphere -----------------------------------------------
 
 type sphere struct {
 	center vector3
 	radius float64
 	e, r   color3
+	rT     reflectionType
 }
 
 func (s sphere) intersect(r ray) (float64, bool) {
-	a := r.direction.normSquared()
-	b := 2 * r.direction.dot(r.start.minus(s.center))
+	a := r.direction().normSquared()
+	b := 2 * r.direction().dot(r.start.minus(s.center))
 	c := r.start.minus(s.center).normSquared() - math.Pow(s.radius, 2)
 	discriminant := math.Pow(b, 2) - (4 * a * c)
 	var t float64
@@ -178,7 +195,7 @@ func (s sphere) intersect(r ray) (float64, bool) {
 		if t < 0 {
 			return 0, false
 		}
-		if r.direction.dot(s.normalAt(r.at(t))) > 0 {
+		if r.direction().dot(s.normalAt(r.at(t))) > 0 {
 			return 0, false
 		}
 	} else {
@@ -189,7 +206,7 @@ func (s sphere) intersect(r ray) (float64, bool) {
 		if !ok {
 			return 0, false
 		}
-		if r.direction.dot(s.normalAt(r.at(t))) > 0 {
+		if r.direction().dot(s.normalAt(r.at(t))) > 0 {
 			return 0, false
 		}
 	}
@@ -208,6 +225,10 @@ func (s sphere) normalAt(point vector3) vector3 {
 	return point.minus(s.center).norm()
 }
 
+func (s sphere) reflType() reflectionType {
+	return s.rT
+}
+
 //- object3D --------------------------------------------
 
 type object3D interface {
@@ -215,6 +236,7 @@ type object3D interface {
 	emittance() color3
 	reflectance() color3
 	normalAt(point vector3) vector3
+	reflType() reflectionType
 }
 
 //- path_tracer -----------------------------------------
@@ -237,7 +259,12 @@ func tracePath(objs []object3D, r ray, depth int) color3 {
 		return color3{}
 	}
 	pointHit := r.at(minT)
-	newDirection := randomUnitVectorInHemisphereOf(thingHit.normalAt(pointHit))
+	var newDirection vector3
+	if thingHit.reflType() == DIFFUSE {
+		newDirection = randomUnitVectorInHemisphereOf(thingHit.normalAt(pointHit))
+	} else {
+		newDirection = r.direction().minus(thingHit.normalAt(pointHit).times(2 * thingHit.normalAt(pointHit).dot(r.direction())))
+	}
 	newRay := ray{pointHit, newDirection}
 	p := 1 / (2 * math.Pi)
 	cos_theta := newDirection.dot(thingHit.normalAt(pointHit))
@@ -254,31 +281,37 @@ func main() {
 			1,
 			color3{},
 			color3{0.5, 0.25, 0.125},
+			SPECULAR,
 		},
 		sphere{vector3{-1, -1, 5},
 			0.5,
 			color3{10, 10, 10},
 			color3{},
+			DIFFUSE,
 		},
 		plane{vector3{0, 0, 7},
 			vector3{0, 0, -1},
 			color3{},
 			color3{1, 0.5, 0.5},
+			DIFFUSE,
 		},
 		plane{vector3{-2, 0, 0},
 			vector3{1, 0, 0},
 			color3{},
 			color3{1, 0.5, 0.5},
+			DIFFUSE,
 		},
 		plane{vector3{2, 0, 0},
 			vector3{-1, 0, 0},
 			color3{},
 			color3{1, 0.5, 0.5},
+			DIFFUSE,
 		},
 		plane{vector3{0, -1, 0},
 			vector3{0, 1, 0},
 			color3{},
 			color3{1, 0.5, 0.5},
+			DIFFUSE,
 		},
 	}
 	r := image.Rect(0, 0, IMAGE_RES, IMAGE_RES)
