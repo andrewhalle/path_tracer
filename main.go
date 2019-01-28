@@ -141,7 +141,7 @@ func (u vector3) normSquared() float64 {
 }
 
 func (u vector3) norm() vector3 {
-	return u.times(math.Sqrt(u.normSquared()))
+	return u.times(1 / math.Sqrt(u.normSquared()))
 }
 
 //- color3 -----------------------------------------------
@@ -330,6 +330,9 @@ func parseArgs() {
 		case "--samples":
 			SAMPLES, _ = strconv.Atoi(args[1])
 			args = args[2:]
+		case "--depth":
+			MAX_DEPTH, _ = strconv.Atoi(args[1])
+			args = args[2:]
 		default:
 			panic("unable to parse args")
 		}
@@ -340,6 +343,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	parseArgs()
 	objs := sceneFromJSON(SCENE_FILENAME)
+	fmt.Fprintf(os.Stderr, "found %d objects\n", len(objs))
 	r := image.Rect(0, 0, IMAGE_RES, IMAGE_RES)
 	im := image.NewRGBA(r)
 	for i := 0; i < IMAGE_RES; i++ {
